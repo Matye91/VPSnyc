@@ -34,6 +34,7 @@ class App:
         rows = self.fetch_SQL_data(SQL_QUERY, "orders")
         if not rows or len(rows) == 0:
             self.logger.write_log("Keine neuen Bestellungen gefunden!")
+            print("No new data found!")
             return
         
         print("Data fetched from SQL Server.")

@@ -3,3 +3,4 @@ timestamps.json
 /build/
 /dist/
 /__pycache__/
+main.spec

@@ -3,9 +3,8 @@ import json
 from datetime import datetime
 
 
-
 class Logger:
-    LOG_FILE_NAME = "api_log.txt"
+    LOG_FILE_PATH = "api_log.txt"
     MAX_LOG_LINES = 1000
 
     def __init__(self):
@@ -44,23 +43,18 @@ class Logger:
         # Generate log messages for each result category
         timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S] ")
 
-        # Get the path of the current directory where the program is stored
-        current_directory = os.path.dirname(os.path.abspath(__file__))
-        log_file_path = os.path.join(current_directory, self.LOG_FILE_NAME)
+        if not os.path.exists(self.LOG_FILE_PATH):
+            open(self.LOG_FILE_PATH, 'w').close()
 
         # Open (or create) the log file and append the message
-        with open(log_file_path, "a") as log_file:
+        with open(self.LOG_FILE_PATH, "a") as log_file:
             log_file.write(timestamp + message + "\n")
 
 
     def check_log_size(self):
-        # Get the path of the log file
-        current_directory = os.path.dirname(os.path.abspath(__file__))
-        log_file_path = os.path.join(current_directory, self.LOG_FILE_NAME)
-
         # Check if the log file exists
-        if os.path.exists(log_file_path):
-            with open(log_file_path, "r+") as log_file:
+        if os.path.exists(self.LOG_FILE_PATH):
+            with open(self.LOG_FILE_PATH, "r+") as log_file:
                 lines = log_file.readlines()
                 if len(lines) > self.MAX_LOG_LINES:
                     # If there are too many lines, keep only the latest MAX_LOG_LINES lines
