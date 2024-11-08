@@ -3,97 +3,121 @@
 # pip install sshtunnel
 # pip install requests
 
-# TODO
-# load only orders at which the timestamp is younger than the latest sync
-# store the login data safe(r)
-
 import requests
 import json
 import os
+from config import API_CONFIG
 from database.sql_server import SQLServerConnection
 from database.data_processor import DataProcessor
-from config import API_CONFIG
+from logger import Logger
+
+TIMESTAMP_FILE = 'timestamps.json'
 
 class App:
     def __init__(self):
-        # Initialize database connections and data processor
+        # Initialize database connections, data processor and logger
         self.sql_server = SQLServerConnection()
         self.data_processor = DataProcessor()
+        self.logger = Logger()
 
     def sync_orders(self):
 
         SQL_QUERY = """
             SELECT Belegdatum AS Datum, Belegnummer AS Auftragsnr, A0Empfaenger AS Kdnr, 
                 A0Matchcode AS Kunde, USER_UnserZeichen AS UnserZeichen, Vertreter, USER_Kennung 
-                AS Kennung, Nettobetrag AS GesamtNetto, Rabattbetrag1 as Porto
+                AS Kennung, Nettobetrag AS GesamtNetto, Rabattbetrag1 as Porto, Timestamp
             FROM [OLReweAbf].[dbo].[KHKVKBelege] 
             WHERE Belegart = 'Auftragsbestätigung'
+                AND Timestamp > ?
             """
 
+        rows = self.fetch_SQL_data(SQL_QUERY, "orders")
+        if not rows or len(rows) == 0:
+            self.logger.write_log("Keine neuen Bestellungen gefunden!")
+            return
+        
+        print("Data fetched from SQL Server.")
+
+        # Process each row and collect it in a list
+        data_list = [self.data_processor.process_order_row(row) for row in rows]
+
+        # add the query_type
+        payload = {
+            "query_type": "sync_orders",
+            "data": data_list
+        }
+
+        # Send all data in one request to the API
+        response = self.send_to_api(payload)
+        if not response:
+            self.logger.write_log("sync_orders Methode hat keine json response erhalten!")
+            return
+        
+        # write response into log file
+        self.logger.process_response(response)
+
+    def fetch_SQL_data(self, query, mode):
+        rows = None
+        # get latest timestamp for query
+        timestamp_hex = self.get_timestamp(mode)
+        timestamp_bytes = bytearray.fromhex(timestamp_hex) if timestamp_hex else None
+
+        # fetches data from the MS SQL Server
         try:
             # Connect to SQL Server and fetch data
             self.sql_server.connect()
-            rows = self.sql_server.fetch_data(SQL_QUERY)
-            print("Data fetched from SQL Server.")
+            if timestamp_bytes:
+                rows = self.sql_server.fetch_data(query, (timestamp_bytes,))
+            else:
+                # Remove the `AND Timestamp > ?` condition if last_timestamp_bytes is None
+                rows = self.sql_server.fetch_data(query.replace("AND Timestamp > ?", ""))
 
-            # Process each row and collect it in a list
-            data_list = [self.data_processor.process_order_row(row) for row in rows]
+            if not rows or len(rows) == 0:
+                return
 
-            # add the query_type
-            payload = {
-                "query_type": "sync_orders",
-                "data": data_list
-            }
-
-            # Send all data in one request
-            self.send_to_api(payload)
+            # save new latest timestamp
+            latest_timestamp = max(row.Timestamp.hex() for row in rows)
+            if latest_timestamp:
+                self.save_timestamp(latest_timestamp, mode)
 
         except Exception as e:
             print(f"Error: {e}")
 
         finally:
-            # Close database connections
             self.sql_server.close()
+            return rows
 
     def send_to_api(self, payload):
         # Send the entire data list as JSON payload in one request
         try:
             response = requests.post(API_CONFIG['url'], json=payload, headers=API_CONFIG['headers'])
-
-            # store the response of the API
             response.raise_for_status()
-
-            try:
-                results = response.json().get("results", {})
-            except json.JSONDecodeError:
-                print("Error: The API response is not in JSON format.")
-                print("Response text:", response.text)  # Print the raw response for debugging
-                exit()
-
-            # Get the path of the current directory where the program is stored
-            current_directory = os.path.dirname(os.path.abspath(__file__))
-            log_file_path = os.path.join(current_directory, "api_log.txt")
-
-            # Open (or create) the log file and append each result
-            with open(log_file_path, "a") as log_file:
-                # Log inserted records
-                for auftragsnr in results.get("inserted", []):
-                    log_file.write(f"Auftragsnr {auftragsnr} erfolgreich eingefügt.\n")
-
-                # Log updated records
-                for auftragsnr in results.get("updated", []):
-                    log_file.write(f"Auftragsnr {auftragsnr} erfolgreich aktualisiert.\n")
-
-                # Log errors with details
-                for error in results.get("errors", []):
-                    auftragsnr = error.get("Auftragsnr", "Unknown")
-                    error_message = error.get("error", "No error message provided")
-                    log_file.write(f"FEHLER: Auftragsnr {auftragsnr}, Message: {error_message}\n")
-
-            print("Log updated successfully.")
+            return response
 
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {e}")
+            return
+
+    def get_timestamp(self, mode):
+        if os.path.exists(TIMESTAMP_FILE):
+            with open(TIMESTAMP_FILE, 'r') as file:
+                data = json.load(file)
+                return data.get(mode)
+        return None
+
+    def save_timestamp(self, timestamp, mode):
+        if os.path.exists(TIMESTAMP_FILE):
+            with open(TIMESTAMP_FILE, 'r') as file:
+                data = json.load(file)
+        else:
+            data = {}
+
+        # Update the timestamp for the given mode
+        data[mode] = timestamp
+
+        # Write the updated data back to the JSON file
+        with open(TIMESTAMP_FILE, 'w') as file:
+            json.dump(data, file, indent=4)
 
 if __name__ == "__main__":
     app = App()

@@ -25,9 +25,12 @@ class SQLServerConnection:
                 print(f"Failed to connect using driver {driver}: {e}")
         raise Exception("Failed to connect with all provided ODBC drivers.")
 
-    def fetch_data(self, query):
+    def fetch_data(self, query, params=None):
         cursor = self.connection.cursor()
-        cursor.execute(query)
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
         return cursor.fetchall()
 
     def close(self):
