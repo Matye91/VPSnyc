@@ -27,7 +27,7 @@ class App:
                 A0Matchcode AS Kunde, USER_UnserZeichen AS UnserZeichen, Vertreter, USER_Kennung 
                 AS Kennung, Nettobetrag AS GesamtNetto, Rabattbetrag1 as Porto, Timestamp
             FROM [OLReweAbf].[dbo].[KHKVKBelege] 
-            WHERE Belegart = 'Auftragsbestätigung'
+            WHERE (Belegart = 'Auftragsbestätigung' or Belegart = 'Stornorechnung' or Belegart = 'Gutschrift')
                 AND Timestamp > ?
             """
 
