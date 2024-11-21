@@ -22,19 +22,19 @@ class Logger:
 
         # Log inserted records
         for auftragsnr in results.get("inserted", []):
-            message = f"Auftragsnr {auftragsnr} erfolgreich eingefügt."
+            message = f"Beleg {auftragsnr} erfolgreich eingefügt."
             self.write_log(message)
 
         # Log updated records
         for auftragsnr in results.get("updated", []):
-            message = f"Auftragsnr {auftragsnr} erfolgreich aktualisiert."
+            message = f"Beleg {auftragsnr} erfolgreich aktualisiert."
             self.write_log(message)
 
         # Log errors with details
         for error in results.get("errors", []):
-            auftragsnr = error.get("Auftragsnr", "Unknown")
+            auftragsnr = error.get("Beleg", "Unknown")
             error_message = error.get("error", "No error message provided")
-            message = f"FEHLER: Auftragsnr {auftragsnr}, Message: {error_message}"
+            message = f"FEHLER: Beleg {auftragsnr}, Message: {error_message}"
             self.write_log(message)
 
         print("Log updated successfully.")
