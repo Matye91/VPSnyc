@@ -19,19 +19,21 @@ class App:
         self.sql_server = SQLServerConnection()
         self.data_processor = DataProcessor()
         self.logger = Logger()
+        self.latestTimestamp = False
 
     def sync_orders(self):
+        mode = "orders"
 
         SQL_QUERY = """
             SELECT Belegdatum AS Datum, Belegnummer AS Auftragsnr, A0Empfaenger AS Kdnr, 
                 A0Matchcode AS Kunde, USER_UnserZeichen AS UnserZeichen, Vertreter, USER_Kennung 
-                AS Kennung, Nettobetrag AS GesamtNetto, Rabattbetrag1 as Porto, Timestamp
+                AS Kennung, Nettobetrag AS GesamtNetto, NettobetragEW - ZWInternEW AS Porto, Timestamp
             FROM [OLReweAbf].[dbo].[KHKVKBelege] 
-            WHERE (Belegart = 'Auftragsbestätigung' or Belegart = 'Stornorechnung' or Belegart = 'Gutschrift')
+            WHERE (Belegart = 'Auftragsbestätigung' or Belegart = 'Stornorechnung' or Belegart = 'Gutschrift' or Belegart = 'Auftragsstorno' or Belegart = 'Rücklieferschein' or Belegart = 'Stornierung')
                 AND Timestamp > ?
             """
 
-        rows = self.fetch_SQL_data(SQL_QUERY, "orders")
+        rows = self.fetch_SQL_data(SQL_QUERY, mode)
         if not rows or len(rows) == 0:
             self.logger.write_log("Keine neuen Bestellungen gefunden!")
             print("No new data found!")
@@ -57,6 +59,10 @@ class App:
         # write response into log file
         self.logger.process_response(response)
 
+        # if successful update timestamp file
+        if response.status_code == 200 and self.latestTimestamp:
+            self.save_timestamp(self.latestTimestamp, mode)
+
     def fetch_SQL_data(self, query, mode):
         rows = None
         # get latest timestamp for query
@@ -76,10 +82,8 @@ class App:
             if not rows or len(rows) == 0:
                 return
 
-            # save new latest timestamp
-            latest_timestamp = max(row.Timestamp.hex() for row in rows)
-            if latest_timestamp:
-                self.save_timestamp(latest_timestamp, mode)
+            # store new latest timestamp to update later if successful
+            self.latestTimestamp = max(row.Timestamp.hex() for row in rows)
 
         except Exception as e:
             print(f"Error: {e}")
