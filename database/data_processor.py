@@ -22,7 +22,7 @@ class DataProcessor:
             "Kdnr": int(row.Kdnr[1:]) if row.Kdnr else 0,
             "Kunde": row.Kunde,
             "UnserZeichen": row.UnserZeichen,
-            "Vertreter": int(row.Vertreter[1:]) if row.Vertreter else 0,
+            "Vertreter": int(row.Vertreter[1:]) if row.Vertreter else 3,
             "Kennung": row.Kennung,
             "GesamtNetto": gesamt_netto,
             "Porto": porto,
