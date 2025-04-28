@@ -25,11 +25,13 @@ class App:
         mode = "orders"
 
         SQL_QUERY = """
-            SELECT Belegdatum AS Datum, Belegnummer AS Auftragsnr, A0Empfaenger AS Kdnr, 
+            SELECT Belegdatum AS Datum, Belegart, Belegnummer AS Auftragsnr, A0Empfaenger AS Kdnr, 
                 A0Matchcode AS Kunde, USER_UnserZeichen AS UnserZeichen, Vertreter, USER_Kennung 
                 AS Kennung, Nettobetrag AS GesamtNetto, NettobetragEW - ZWInternEW AS Porto, Timestamp
             FROM [OLReweAbf].[dbo].[KHKVKBelege] 
-            WHERE (Belegart = 'Auftragsbestätigung' or Belegart = 'Stornorechnung' or Belegart = 'Gutschrift' or Belegart = 'Auftragsstorno' or Belegart = 'Rücklieferschein' or Belegart = 'Stornierung')
+            WHERE (Belegart = 'Auftragsbestätigung' 
+            or ((Belegart = 'Stornorechnung' or Belegart = 'Gutschrift' or Belegart = 'Auftragsstorno' or Belegart = 'Rücklieferschein' or Belegart = 'Stornierung') 
+				AND (USER_Kennung LIKE '%überall%' or USER_Kennung LIKE '%Umsatzl%')))
                 AND Timestamp > ?
             """
 
